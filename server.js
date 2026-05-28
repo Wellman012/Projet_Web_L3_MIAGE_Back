@@ -28,18 +28,85 @@ app.get('/api/playlists', async (req, res) => {
     // res.json(playlists)
 });
 
-app.get('/api/playlists/:id', (req, res) => {
-    const id = Number(req.params.id);
+app.get('/api/playlists/recherche', async (req, res) => {
 
-    const playlist = playlists.find((p) => p.id === id);
-
-    if (!playlist) {
-        return res.status(404).json({ message: 'Playlist introuvable' })
+    try {
+        const name = req.query.name;
+        const [rows] = await db.query('SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist WHERE nom LIKE ? ORDER BY id',
+            [`%${name}%`]);
+        res.json(rows);
+    } catch (error) {
+        console.error('Erreur lors de la récupération des playlists :', error);
+        res.status(500).json({ message: 'Erreur serveur' });
     }
-    return res.json(playlist)
 });
+
+app.get('/api/playlists/clicksUp', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist ORDER BY nb_clics DESC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+app.get('/api/playlists/clicksDown', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist ORDER BY nb_clics ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.get('/api/playlists/alphaUp', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist ORDER BY nom DESC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+app.get('/api/playlists/alphaDown', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist ORDER BY nom ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.get('/api/playlists/genreUp', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist ORDER BY genre DESC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+app.get('/api/playlists/genreDown', async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist ORDER BY genre ASC'
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
 
 app.listen(PORT, () => {
     console.log(`Serveur lancé sur http://localhost:${PORT}`);
 });
+
 
