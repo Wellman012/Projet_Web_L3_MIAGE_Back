@@ -104,6 +104,18 @@ app.get('/api/playlists/genreDown', async (req, res) => {
     }
 });
 
+app.post('/api/playlists', async (req, res) => {
+  try {
+    const { titre, genre, createur } = req.body;
+    const [result] = await db.query(
+      'INSERT INTO playlist (nom, genre, pseudo_createur, nb_clics) VALUES (?, ?, ?, 0)',
+      [titre, genre, createur]
+    );
+    res.status(201).json({ id: result.insertId, titre, genre, createur });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
 
 app.listen(PORT, () => {
     console.log(`Serveur lancé sur http://localhost:${PORT}`);
