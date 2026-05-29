@@ -104,6 +104,79 @@ app.get('/api/playlists/genreDown', async (req, res) => {
     }
 });
 
+// Détails d'une playlist avec ses contributeurs
+app.get('/api/playlists/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        const [playlist] = await db.query(
+            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist WHERE id = ?',
+            [id]
+        );
+
+        if (playlist.length === 0) return res.status(404).json({ message: 'Playlist introuvable' });
+
+        const [contributeurs] = await db.query(
+            `SELECT u.pseudo FROM playlist_contributeur pc
+             JOIN user u ON pc.user_id = u.id
+             WHERE pc.playlist_id = ? AND pc.role_contribution != 'createur'`,
+            [id]
+        );
+
+        res.json({
+            ...playlist[0],
+            contributeurs: contributeurs.map(c => c.pseudo)
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+// Morceaux d'une playlist
+app.get('/api/playlists/:id/morceaux', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const [rows] = await db.query(
+            `SELECT m.id, m.titre, m.artiste, m.genre, m.duree_secondes, pm.ordre_dans_playlist
+             FROM playlist_morceau pm
+             JOIN morceau m ON pm.morceau_id = m.id
+             WHERE pm.playlist_id = ?
+             ORDER BY pm.ordre_dans_playlist`,
+            [id]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+// Supprimer un morceau d'une playlist
+app.delete('/api/playlists/:playlistId/morceaux/:morceauId', async (req, res) => {
+    try {
+        const { playlistId, morceauId } = req.params;
+        await db.query(
+            'DELETE FROM playlist_morceau WHERE playlist_id = ? AND morceau_id = ?',
+            [playlistId, morceauId]
+        );
+        res.status(200).json({ message: 'Morceau retiré' });
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.post('/api/playlists', async (req, res) => {
+    try {
+        const { titre, genre, createur } = req.body;
+        const [result] = await db.query(
+            'INSERT INTO playlist (nom, genre, pseudo_createur, nb_clics) VALUES (?, ?, ?, 0)',
+            [titre, genre, createur]
+        );
+        res.status(201).json({ id: result.insertId, titre, genre, createur });
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
 app.get('/api/profil/:pseudo', async (req, res) => {
     try {
         const pseudo = req.params.pseudo;
@@ -130,19 +203,6 @@ app.get('/api/profil/:pseudo', async (req, res) => {
             contributions,
             genreFavori: genreRow[0]?.genre || 'Aucun'
         });
-    } catch (error) {
-        res.status(500).json({ message: 'Erreur serveur' });
-    }
-});
-
-app.post('/api/playlists', async (req, res) => {
-    try {
-        const { titre, genre, createur } = req.body;
-        const [result] = await db.query(
-            'INSERT INTO playlist (nom, genre, pseudo_createur, nb_clics) VALUES (?, ?, ?, 0)',
-            [titre, genre, createur]
-        );
-        res.status(201).json({ id: result.insertId, titre, genre, createur });
     } catch (error) {
         res.status(500).json({ message: 'Erreur serveur' });
     }
