@@ -208,6 +208,32 @@ app.get('/api/profil/:pseudo', async (req, res) => {
     }
 });
 
+app.get('/api/verifier-pseudo/:pseudo', async (req, res) => {
+    try {
+        const pseudo = req.params.pseudo;
+        const [rows] = await db.query('SELECT id FROM user WHERE pseudo = ?', [pseudo]);
+        res.json({ exists: rows.length > 0 });
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.post('/api/inscription', async (req, res) => {
+    try {
+        const { nom, prenom, pseudo, motDePasse } = req.body;
+        const [result] = await db.query(
+            'INSERT INTO user (nom, prenom, pseudo, mdp) VALUES (?, ?, ?, ?)',
+            [nom, prenom, pseudo, motDePasse]
+        );
+        res.status(201).json({ id: result.insertId, nom, prenom, pseudo });
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+
+//Faire connexion
+
 app.listen(PORT, () => {
     console.log(`Serveur lancé sur http://localhost:${PORT}`);
 });
