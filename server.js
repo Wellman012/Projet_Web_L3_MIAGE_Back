@@ -19,10 +19,9 @@ const PORT = 3000;
 
 app.get('/api/playlists', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist ORDER BY id');
+        const [rows] = await db.query('SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY id');
         res.json(rows);
     } catch (error) {
-        console.error('Erreur lors de la récupération des playlists :', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
     // res.json(playlists)
@@ -42,7 +41,7 @@ app.get('/api/playlists/recherche', async (req, res) => {
 
     try {
         const name = req.query.name;
-        const [rows] = await db.query('SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id WHERE nom LIKE ? ORDER BY id',
+        const [rows] = await db.query('SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id WHERE nom LIKE ? ORDER BY id',
             [`%${name}%`]);
         res.json(rows);
     } catch (error) {
@@ -54,7 +53,7 @@ app.get('/api/playlists/recherche', async (req, res) => {
 app.get('/api/playlists/clicksUp', async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nb_clics DESC'
+            'SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nb_clics DESC'
         );
         res.json(rows);
     } catch (error) {
@@ -64,7 +63,7 @@ app.get('/api/playlists/clicksUp', async (req, res) => {
 app.get('/api/playlists/clicksDown', async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nb_clics ASC'
+            'SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nb_clics ASC'
         );
         res.json(rows);
     } catch (error) {
@@ -75,7 +74,7 @@ app.get('/api/playlists/clicksDown', async (req, res) => {
 app.get('/api/playlists/alphaUp', async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nom DESC'
+            'SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nom DESC'
         );
         res.json(rows);
     } catch (error) {
@@ -85,7 +84,7 @@ app.get('/api/playlists/alphaUp', async (req, res) => {
 app.get('/api/playlists/alphaDown', async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nom ASC'
+            'SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY nom ASC'
         );
         res.json(rows);
     } catch (error) {
@@ -96,7 +95,7 @@ app.get('/api/playlists/alphaDown', async (req, res) => {
 app.get('/api/playlists/genreUp', async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY G.genre DESC'
+            'SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY G.genre DESC'
         );
         res.json(rows);
     } catch (error) {
@@ -106,7 +105,7 @@ app.get('/api/playlists/genreUp', async (req, res) => {
 app.get('/api/playlists/genreDown', async (req, res) => {
     try {
         const [rows] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY G.genre ASC'
+            'SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id ORDER BY G.genre ASC'
         );
         res.json(rows);
     } catch (error) {
@@ -120,7 +119,7 @@ app.get('/api/playlists/:id', async (req, res) => {
         const id = req.params.id;
 
         const [playlist] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, G.genre, nb_clics FROM playlist P join genre G ON P.genre = G.id WHERE id = ?',
+            'SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics FROM playlist P join genre G ON P.genre = G.id WHERE P.id = ?',
             [id]
         );
 
@@ -176,13 +175,22 @@ app.delete('/api/playlists/:playlistId/morceaux/:morceauId', async (req, res) =>
 
 app.post('/api/playlists', async (req, res) => {
     try {
-        const { titre, genre, createur } = req.body;
+        const { titre, genre, createur, color } = req.body;
+        let genreId;  // ← manquant
+        const [genreRow] = await db.query('SELECT id FROM genre WHERE genre = ?', [genre]);
+        if (genreRow.length === 0) {
+            const [newGenre] = await db.query('INSERT INTO genre (genre, color) VALUES (?, ?)', [genre, color]);
+            genreId = newGenre.insertId;
+        } else {
+            genreId = genreRow[0].id;
+        }
         const [result] = await db.query(
             'INSERT INTO playlist (nom, genre, pseudo_createur, nb_clics) VALUES (?, ?, ?, 0)',
-            [titre, genre, createur]
+            [titre, genreId, createur]
         );
         res.status(201).json({ id: result.insertId, titre, genre, createur });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 });
@@ -191,14 +199,15 @@ app.get('/api/profil/:pseudo', async (req, res) => {
     try {
         const pseudo = req.params.pseudo;
         const [playlists] = await db.query(
-            'SELECT id, nom AS titre, pseudo_createur AS createur, genre, nb_clics FROM playlist WHERE pseudo_createur = ? ORDER BY id',
+            'SELECT P.id, P.nom AS titre, P.pseudo_createur AS createur, G.genre, G.color, P.nb_clics FROM playlist P JOIN genre G ON P.genre = G.id WHERE P.pseudo_createur = ? ORDER BY P.id',
             [pseudo]
         );
         const [contributions] = await db.query(
-            `SELECT p.id, p.nom AS titre, p.pseudo_createur AS createur, p.genre, p.nb_clics 
+            `SELECT p.id, p.nom AS titre, p.pseudo_createur AS createur, G.genre, G.color, p.nb_clics 
              FROM playlist p
              JOIN playlist_contributeur pc ON p.id = pc.playlist_id
              JOIN user u ON pc.user_id = u.id
+             JOIN genre G ON p.genre = G.id
              WHERE u.pseudo = ? AND pc.role_contribution != 'createur'`,
             [pseudo]
         );
