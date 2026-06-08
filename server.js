@@ -234,8 +234,10 @@ app.get('/api/profil/:pseudo', async (req, res) => {
             [pseudo]
         );
         const [genreRow] = await db.query(
-            `SELECT genre, COUNT(*) as total FROM playlist 
-             WHERE pseudo_createur = ? GROUP BY genre ORDER BY total DESC LIMIT 1`,
+            `SELECT G.genre, COUNT(*) as total FROM playlist P
+             JOIN genre G ON P.genre = G.id
+             WHERE P.pseudo_createur = ?
+             GROUP BY G.genre ORDER BY total DESC LIMIT 1`,
             [pseudo]
         );
         res.json({
