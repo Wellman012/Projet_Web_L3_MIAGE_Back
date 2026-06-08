@@ -159,7 +159,29 @@ app.get('/api/playlists/:id/morceaux', async (req, res) => {
     }
 });
 
-// Supprimer un morceau d'une playlist
+
+app.get('/api/morceaux', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, titre, artiste, genre FROM morceau ORDER BY titre');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.get('/api/morceaux/recherche', async (req, res) => {
+    try {
+        const name = req.query.name;
+        const [rows] = await db.query(
+            'SELECT id, titre, artiste, genre FROM morceau WHERE titre LIKE ? OR artiste LIKE ? ORDER BY titre',
+            [`%${name}%`, `%${name}%`]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
 app.delete('/api/playlists/:playlistId/morceaux/:morceauId', async (req, res) => {
     try {
         const { playlistId, morceauId } = req.params;
@@ -267,7 +289,69 @@ app.post('/api/connexion', async (req, res) => {
     }
 });
 
+app.post('/api/playlists/:playlistId/morceaux', async (req, res) => {
+    const playlistId = parseInt(req.params.playlistId, 10);
+    const morceaux = req.body.morceaux;
 
+    if (!Array.isArray(morceaux) || morceaux.length === 0) {
+        return res.status(400).json({ error: 'La liste des morceaux est invalide ou vide' });
+    }
+
+    try {
+        console.log(`Ajouter ${morceaux.length} morceaux à la playlist ${playlistId}`);
+
+        const uniqueMorceaux = [...new Set(morceaux)];
+        const [existingRows] = await db.query(
+            'SELECT morceau_id FROM playlist_morceau WHERE playlist_id = ?',
+            [playlistId]
+        );
+        const existingIds = new Set(existingRows.map((row) => row.morceau_id));
+        const morceauxAInserer = uniqueMorceaux.filter((morceauId) => !existingIds.has(morceauId));
+        const morceauxDejaPresents = uniqueMorceaux.filter((morceauId) => existingIds.has(morceauId));
+
+        if (morceauxAInserer.length === 0) {
+            return res.status(200).json({
+                message: 'Aucun nouveau morceau à ajouter',
+                playlistId,
+                morceauxAjoutes: 0,
+                dejaPresents: morceauxDejaPresents
+            });
+        }
+
+        const getMaxOrdreQuery = `
+            SELECT COALESCE(MAX(ordre_dans_playlist), 0) AS maxOrdre
+            FROM playlist_morceau
+            WHERE playlist_id = ?
+        `;
+
+        const [rows] = await db.query(getMaxOrdreQuery, [playlistId]);
+        let ordre = rows[0].maxOrdre || 0;
+
+        const values = morceauxAInserer.map((morceauId) => {
+            ordre++;
+            return [playlistId, morceauId, ordre];
+        });
+
+        const insertQuery = `
+            INSERT INTO playlist_morceau (playlist_id, morceau_id, ordre_dans_playlist)
+            VALUES ?
+        `;
+
+        await db.query(insertQuery, [values]);
+
+        return res.status(201).json({
+            message: 'Morceaux ajoutés avec succès',
+            playlistId,
+            morceauxAjoutes: morceauxAInserer.length,
+            dejaPresents: morceauxDejaPresents
+        });
+    } catch (err) {
+        console.error('Erreur ajout morceaux playlist :', err);
+        return res.status(500).json({
+            error: 'Erreur serveur lors de l’ajout des morceaux à la playlist'
+        });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Serveur lancé sur http://localhost:${PORT}`);
