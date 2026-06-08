@@ -146,7 +146,7 @@ app.get('/api/playlists/:id/morceaux', async (req, res) => {
     try {
         const id = req.params.id;
         const [rows] = await db.query(
-            `SELECT m.id, m.titre, m.artiste, m.genre, m.duree_secondes, pm.ordre_dans_playlist
+            `SELECT m.id, m.titre, m.artiste, pm.ordre_dans_playlist
              FROM playlist_morceau pm
              JOIN morceau m ON pm.morceau_id = m.id
              WHERE pm.playlist_id = ?
@@ -162,7 +162,7 @@ app.get('/api/playlists/:id/morceaux', async (req, res) => {
 
 app.get('/api/morceaux', async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT id, titre, artiste, genre FROM morceau ORDER BY titre');
+        const [rows] = await db.query('SELECT id, titre, artiste FROM morceau ORDER BY titre');
         res.json(rows);
     } catch (error) {
         res.status(500).json({ message: 'Erreur serveur' });
@@ -173,7 +173,7 @@ app.get('/api/morceaux/recherche', async (req, res) => {
     try {
         const name = req.query.name;
         const [rows] = await db.query(
-            'SELECT id, titre, artiste, genre FROM morceau WHERE titre LIKE ? OR artiste LIKE ? ORDER BY titre',
+            'SELECT id, titre, artiste FROM morceau WHERE titre LIKE ? OR artiste LIKE ? ORDER BY titre',
             [`%${name}%`, `%${name}%`]
         );
         res.json(rows);
@@ -352,6 +352,18 @@ app.post('/api/playlists/:playlistId/morceaux', async (req, res) => {
         });
     }
 });
+
+
+app.post('/api/playlists/:id/click', async (req, res) => {
+    try {
+        const id = req.params.id;
+        await db.query('UPDATE playlist SET nb_clics = nb_clics + 1 WHERE id = ?', [id]);
+        res.status(200).json({ message: 'Clic enregistré' });
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
 
 app.listen(PORT, () => {
     console.log(`Serveur lancé sur http://localhost:${PORT}`);
