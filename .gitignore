@@ -1,0 +1,30 @@
+# ===== Node =====
+node_modules/
+
+# ===== Logs =====
+logs/
+*.log
+npm-debug.log*
+
+# ===== Environment =====
+.env
+
+# ===== Build =====
+dist/
+build/
+
+# ===== Uploads utilisateur (mp3 etc) =====
+Morceaux/
+uploads/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== IDE =====
+.vscode/
+.idea/
+
+
+
+testPost.js

@@ -1,19 +1,81 @@
 
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const db = require('./db');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/morceaux-fichiers', express.static(path.join(__dirname, 'Morceaux')));
+
+
+// ensure uploads dir exists
+const uploadDir = './Morceaux';
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const PORT = 3000;
 
-// const playlists = [
-//     { id: 1, titre: 'Road Trip', genre: 'Rock', createur: 'Afonso' },
-//     { id: 2, titre: 'Jazz Evening', genre: 'Jazz', createur: 'Emma' },
-//     { id: 3, titre: 'Night Electro', genre: 'Electro', createur: 'leo' },
-// ];
+// Configuration du stockage des fichiers
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        const allowedExt = /mp3|mp4|wav/;
+        const extname = allowedExt.test(path.extname(file.originalname).toLowerCase());
+
+        const allowedMimeTypes = [
+            'audio/mpeg',
+            'audio/mp4',
+            'audio/wav',
+            'audio/x-wav'
+        ];
+        const mimetype = allowedMimeTypes.includes(file.mimetype);
+
+        if (extname && mimetype) {
+            cb(null, true);
+        } else {
+            cb(new Error('Seuls les fichiers audio sont autorisés'));
+        }
+    }
+});
+
+
+// Route pour uploader un fichier
+app.post('/Morceaux', upload.single('fichier'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'Aucun fichier reçu' });
+    }
+    res.json({ message: 'Fichier uploadé avec succès', fichier: req.file.filename });
+});
+
+app.post('/api/morceaux', upload.single('fichier'), async (req, res) => {
+    try {
+        const { titre, artiste } = req.body;
+        if (!req.file) return res.status(400).json({ message: 'Fichier audio manquant' });
+        const chemin = req.file.filename;
+        const [result] = await db.query(
+            'INSERT INTO morceau (titre, artiste, chemin) VALUES (?, ?, ?)',
+            [titre, artiste, chemin]
+        );
+        res.status(201).json({ id: result.insertId, titre, artiste, chemin });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+
 
 
 
@@ -146,12 +208,44 @@ app.get('/api/playlists/:id/morceaux', async (req, res) => {
     try {
         const id = req.params.id;
         const [rows] = await db.query(
-            `SELECT m.id, m.titre, m.artiste, m.genre, m.duree_secondes, pm.ordre_dans_playlist
+            `SELECT m.id, m.titre, m.artiste, m.chemin, pm.ordre_dans_playlist
              FROM playlist_morceau pm
              JOIN morceau m ON pm.morceau_id = m.id
              WHERE pm.playlist_id = ?
              ORDER BY pm.ordre_dans_playlist`,
             [id]
+        );
+
+        // Ajouter les URLs complètes
+        const morceauxWithUrl = rows.map(m => ({
+            ...m,
+            url: m.chemin && m.chemin !== ''
+                ? `http://localhost:${PORT}/morceaux-fichiers/${m.chemin}`
+                : null
+        }));
+
+        res.json(morceauxWithUrl);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+
+app.get('/api/morceaux', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT id, titre, artiste FROM morceau ORDER BY titre');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.get('/api/morceaux/recherche', async (req, res) => {
+    try {
+        const name = req.query.name;
+        const [rows] = await db.query(
+            'SELECT id, titre, artiste FROM morceau WHERE titre LIKE ? OR artiste LIKE ? ORDER BY titre',
+            [`%${name}%`, `%${name}%`]
         );
         res.json(rows);
     } catch (error) {
@@ -159,7 +253,6 @@ app.get('/api/playlists/:id/morceaux', async (req, res) => {
     }
 });
 
-// Supprimer un morceau d'une playlist
 app.delete('/api/playlists/:playlistId/morceaux/:morceauId', async (req, res) => {
     try {
         const { playlistId, morceauId } = req.params;
@@ -176,7 +269,7 @@ app.delete('/api/playlists/:playlistId/morceaux/:morceauId', async (req, res) =>
 app.post('/api/playlists', async (req, res) => {
     try {
         const { titre, genre, createur, color } = req.body;
-        let genreId;  // ← manquant
+        let genreId;
         const [genreRow] = await db.query('SELECT id FROM genre WHERE genre = ?', [genre]);
         if (genreRow.length === 0) {
             const [newGenre] = await db.query('INSERT INTO genre (genre, color) VALUES (?, ?)', [genre, color]);
@@ -184,11 +277,22 @@ app.post('/api/playlists', async (req, res) => {
         } else {
             genreId = genreRow[0].id;
         }
+
         const [result] = await db.query(
             'INSERT INTO playlist (nom, genre, pseudo_createur, nb_clics) VALUES (?, ?, ?, 0)',
             [titre, genreId, createur]
         );
-        res.status(201).json({ id: result.insertId, titre, genre, createur });
+        const playlistId = result.insertId;
+
+        const [userRows] = await db.query('SELECT id FROM user WHERE pseudo = ?', [createur]);
+        if (userRows.length > 0) {
+            await db.query(
+                'INSERT IGNORE INTO playlist_contributeur (playlist_id, user_id, role_contribution) VALUES (?, ?, ?)',
+                [playlistId, userRows[0].id, 'createur']
+            );
+        }
+
+        res.status(201).json({ id: playlistId, titre, genre, createur });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Erreur serveur' });
@@ -212,8 +316,10 @@ app.get('/api/profil/:pseudo', async (req, res) => {
             [pseudo]
         );
         const [genreRow] = await db.query(
-            `SELECT genre, COUNT(*) as total FROM playlist 
-             WHERE pseudo_createur = ? GROUP BY genre ORDER BY total DESC LIMIT 1`,
+            `SELECT G.genre, COUNT(*) as total FROM playlist P
+             JOIN genre G ON P.genre = G.id
+             WHERE P.pseudo_createur = ?
+             GROUP BY G.genre ORDER BY total DESC LIMIT 1`,
             [pseudo]
         );
         res.json({
@@ -223,6 +329,31 @@ app.get('/api/profil/:pseudo', async (req, res) => {
             genreFavori: genreRow[0]?.genre || 'Aucun'
         });
     } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.get('/api/morceaux/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        const [rows] = await db.query(
+            'SELECT id, titre, artiste, chemin FROM morceau WHERE id = ?',
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Morceau introuvable' });
+        }
+
+        const morceau = rows[0];
+
+        res.json({
+            ...morceau,
+            url: `http://localhost:${PORT}/morceaux-fichiers/${morceau.chemin}`
+        });
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 });
@@ -267,6 +398,103 @@ app.post('/api/connexion', async (req, res) => {
     }
 });
 
+app.post('/api/playlists/:playlistId/morceaux', async (req, res) => {
+    const playlistId = parseInt(req.params.playlistId, 10);
+    const morceaux = req.body.morceaux;
+    const pseudo = req.body.pseudo;
+
+    if (!Array.isArray(morceaux) || morceaux.length === 0) {
+        return res.status(400).json({ error: 'La liste des morceaux est invalide ou vide' });
+    }
+
+    try {
+        console.log(`Ajouter ${morceaux.length} morceaux à la playlist ${playlistId}`);
+
+        const uniqueMorceaux = [...new Set(morceaux)];
+        const [existingRows] = await db.query(
+            'SELECT morceau_id FROM playlist_morceau WHERE playlist_id = ?',
+            [playlistId]
+        );
+        const existingIds = new Set(existingRows.map((row) => row.morceau_id));
+        const morceauxAInserer = uniqueMorceaux.filter((morceauId) => !existingIds.has(morceauId));
+        const morceauxDejaPresents = uniqueMorceaux.filter((morceauId) => existingIds.has(morceauId));
+
+        if (pseudo) {
+            const [userRows] = await db.query(
+                `SELECT u.id AS userId, p.pseudo_createur AS createurPseudo
+                 FROM user u
+                 JOIN playlist p ON p.id = ?
+                 WHERE u.pseudo = ?`,
+                [playlistId, pseudo]
+            );
+
+            if (userRows.length > 0) {
+                const userId = userRows[0].userId;
+                const createurPseudo = userRows[0].createurPseudo;
+
+                if (pseudo !== createurPseudo) {
+                    await db.query(
+                        'INSERT IGNORE INTO playlist_contributeur (playlist_id, user_id, role_contribution) VALUES (?, ?, ?)',
+                        [playlistId, userId, 'contributeur']
+                    );
+                }
+            }
+        }
+
+        if (morceauxAInserer.length === 0) {
+            return res.status(200).json({
+                message: 'Aucun nouveau morceau à ajouter',
+                playlistId,
+                morceauxAjoutes: 0,
+                dejaPresents: morceauxDejaPresents
+            });
+        }
+
+        const getMaxOrdreQuery = `
+            SELECT COALESCE(MAX(ordre_dans_playlist), 0) AS maxOrdre
+            FROM playlist_morceau
+            WHERE playlist_id = ?
+        `;
+
+        const [rows] = await db.query(getMaxOrdreQuery, [playlistId]);
+        let ordre = rows[0].maxOrdre || 0;
+
+        const values = morceauxAInserer.map((morceauId) => {
+            ordre++;
+            return [playlistId, morceauId, ordre];
+        });
+
+        const insertQuery = `
+            INSERT INTO playlist_morceau (playlist_id, morceau_id, ordre_dans_playlist)
+            VALUES ?
+        `;
+
+        await db.query(insertQuery, [values]);
+
+        return res.status(201).json({
+            message: 'Morceaux ajoutés avec succès',
+            playlistId,
+            morceauxAjoutes: morceauxAInserer.length,
+            dejaPresents: morceauxDejaPresents
+        });
+    } catch (err) {
+        console.error('Erreur ajout morceaux playlist :', err);
+        return res.status(500).json({
+            error: 'Erreur serveur lors de l’ajout des morceaux à la playlist'
+        });
+    }
+});
+
+
+app.post('/api/playlists/:id/click', async (req, res) => {
+    try {
+        const id = req.params.id;
+        await db.query('UPDATE playlist SET nb_clics = nb_clics + 1 WHERE id = ?', [id]);
+        res.status(200).json({ message: 'Clic enregistré' });
+    } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
 
 
 app.listen(PORT, () => {
