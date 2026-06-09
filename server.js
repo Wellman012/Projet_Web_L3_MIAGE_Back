@@ -1,19 +1,81 @@
 
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const db = require('./db');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/morceaux-fichiers', express.static(path.join(__dirname, 'Morceaux')));
+
+
+// ensure uploads dir exists
+const uploadDir = './Morceaux';
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const PORT = 3000;
 
-// const playlists = [
-//     { id: 1, titre: 'Road Trip', genre: 'Rock', createur: 'Afonso' },
-//     { id: 2, titre: 'Jazz Evening', genre: 'Jazz', createur: 'Emma' },
-//     { id: 3, titre: 'Night Electro', genre: 'Electro', createur: 'leo' },
-// ];
+// Configuration du stockage des fichiers
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        const allowedExt = /mp3|mp4|wav/;
+        const extname = allowedExt.test(path.extname(file.originalname).toLowerCase());
+
+        const allowedMimeTypes = [
+            'audio/mpeg',
+            'audio/mp4',
+            'audio/wav',
+            'audio/x-wav'
+        ];
+        const mimetype = allowedMimeTypes.includes(file.mimetype);
+
+        if (extname && mimetype) {
+            cb(null, true);
+        } else {
+            cb(new Error('Seuls les fichiers audio sont autorisés'));
+        }
+    }
+});
+
+
+// Route pour uploader un fichier
+app.post('/Morceaux', upload.single('fichier'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'Aucun fichier reçu' });
+    }
+    res.json({ message: 'Fichier uploadé avec succès', fichier: req.file.filename });
+});
+
+app.post('/api/morceaux', upload.single('fichier'), async (req, res) => {
+    try {
+        const { titre, artiste } = req.body;
+        if (!req.file) return res.status(400).json({ message: 'Fichier audio manquant' });
+        const chemin = req.file.filename;
+        const [result] = await db.query(
+            'INSERT INTO morceau (titre, artiste, chemin) VALUES (?, ?, ?)',
+            [titre, artiste, chemin]
+        );
+        res.status(201).json({ id: result.insertId, titre, artiste, chemin });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+
 
 
 
@@ -146,14 +208,23 @@ app.get('/api/playlists/:id/morceaux', async (req, res) => {
     try {
         const id = req.params.id;
         const [rows] = await db.query(
-            `SELECT m.id, m.titre, m.artiste, pm.ordre_dans_playlist
+            `SELECT m.id, m.titre, m.artiste, m.chemin, pm.ordre_dans_playlist
              FROM playlist_morceau pm
              JOIN morceau m ON pm.morceau_id = m.id
              WHERE pm.playlist_id = ?
              ORDER BY pm.ordre_dans_playlist`,
             [id]
         );
-        res.json(rows);
+
+        // Ajouter les URLs complètes
+        const morceauxWithUrl = rows.map(m => ({
+            ...m,
+            url: m.chemin && m.chemin !== ''
+                ? `http://localhost:${PORT}/morceaux-fichiers/${m.chemin}`
+                : null
+        }));
+
+        res.json(morceauxWithUrl);
     } catch (error) {
         res.status(500).json({ message: 'Erreur serveur' });
     }
@@ -258,6 +329,31 @@ app.get('/api/profil/:pseudo', async (req, res) => {
             genreFavori: genreRow[0]?.genre || 'Aucun'
         });
     } catch (error) {
+        res.status(500).json({ message: 'Erreur serveur' });
+    }
+});
+
+app.get('/api/morceaux/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        const [rows] = await db.query(
+            'SELECT id, titre, artiste, chemin FROM morceau WHERE id = ?',
+            [id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Morceau introuvable' });
+        }
+
+        const morceau = rows[0];
+
+        res.json({
+            ...morceau,
+            url: `http://localhost:${PORT}/morceaux-fichiers/${morceau.chemin}`
+        });
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 });
