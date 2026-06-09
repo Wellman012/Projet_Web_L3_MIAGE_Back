@@ -198,7 +198,7 @@ app.delete('/api/playlists/:playlistId/morceaux/:morceauId', async (req, res) =>
 app.post('/api/playlists', async (req, res) => {
     try {
         const { titre, genre, createur, color } = req.body;
-        let genreId;  // ← manquant
+        let genreId;
         const [genreRow] = await db.query('SELECT id FROM genre WHERE genre = ?', [genre]);
         if (genreRow.length === 0) {
             const [newGenre] = await db.query('INSERT INTO genre (genre, color) VALUES (?, ?)', [genre, color]);
@@ -206,11 +206,22 @@ app.post('/api/playlists', async (req, res) => {
         } else {
             genreId = genreRow[0].id;
         }
+
         const [result] = await db.query(
             'INSERT INTO playlist (nom, genre, pseudo_createur, nb_clics) VALUES (?, ?, ?, 0)',
             [titre, genreId, createur]
         );
-        res.status(201).json({ id: result.insertId, titre, genre, createur });
+        const playlistId = result.insertId;
+
+        const [userRows] = await db.query('SELECT id FROM user WHERE pseudo = ?', [createur]);
+        if (userRows.length > 0) {
+            await db.query(
+                'INSERT IGNORE INTO playlist_contributeur (playlist_id, user_id, role_contribution) VALUES (?, ?, ?)',
+                [playlistId, userRows[0].id, 'createur']
+            );
+        }
+
+        res.status(201).json({ id: playlistId, titre, genre, createur });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Erreur serveur' });
@@ -294,6 +305,7 @@ app.post('/api/connexion', async (req, res) => {
 app.post('/api/playlists/:playlistId/morceaux', async (req, res) => {
     const playlistId = parseInt(req.params.playlistId, 10);
     const morceaux = req.body.morceaux;
+    const pseudo = req.body.pseudo;
 
     if (!Array.isArray(morceaux) || morceaux.length === 0) {
         return res.status(400).json({ error: 'La liste des morceaux est invalide ou vide' });
@@ -310,6 +322,28 @@ app.post('/api/playlists/:playlistId/morceaux', async (req, res) => {
         const existingIds = new Set(existingRows.map((row) => row.morceau_id));
         const morceauxAInserer = uniqueMorceaux.filter((morceauId) => !existingIds.has(morceauId));
         const morceauxDejaPresents = uniqueMorceaux.filter((morceauId) => existingIds.has(morceauId));
+
+        if (pseudo) {
+            const [userRows] = await db.query(
+                `SELECT u.id AS userId, p.pseudo_createur AS createurPseudo
+                 FROM user u
+                 JOIN playlist p ON p.id = ?
+                 WHERE u.pseudo = ?`,
+                [playlistId, pseudo]
+            );
+
+            if (userRows.length > 0) {
+                const userId = userRows[0].userId;
+                const createurPseudo = userRows[0].createurPseudo;
+
+                if (pseudo !== createurPseudo) {
+                    await db.query(
+                        'INSERT IGNORE INTO playlist_contributeur (playlist_id, user_id, role_contribution) VALUES (?, ?, ?)',
+                        [playlistId, userId, 'contributeur']
+                    );
+                }
+            }
+        }
 
         if (morceauxAInserer.length === 0) {
             return res.status(200).json({
