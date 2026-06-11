@@ -394,6 +394,7 @@ app.post('/api/connexion', async (req, res) => {
             res.status(401).json({ message: 'Identifiants incorrects' });
         }
     } catch (error) {
+        console.error('Erreur dans /api/connexion :', error);
         res.status(500).json({ message: 'Erreur serveur' });
     }
 });
