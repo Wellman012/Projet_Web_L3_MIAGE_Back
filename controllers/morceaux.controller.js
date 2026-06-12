@@ -51,7 +51,7 @@ async function getMorceauById(req, res) {
         // L'URL est reconstruite ici à partir du nom du fichier pour permettre au front de lancer l'audio
         res.json({
             ...morceau,
-            url: `http://localhost:${PORT}/morceaux-fichiers/${morceau.chemin}`
+            url: `/morceaux-fichiers/${morceau.chemin}`
         });
     } catch (error) {
         // L'erreur est affichée côté serveur pour faciliter le debug

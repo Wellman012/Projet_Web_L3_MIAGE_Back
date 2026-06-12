@@ -89,8 +89,8 @@ async function getMorceauxByPlaylistId(req, res) {
         // Construit l'URL de lecture à partir du chemin du fichier quand un morceau possède un fichier audio
         const morceauxWithUrl = rows.map(m => ({
             ...m,
-            url: m.chemin && m.chemin !== ""
-                ? `http://localhost:3000/morceaux-fichiers/${m.chemin}`
+            url: m.chemin && m.chemin !== ''
+                ? `/morceaux-fichiers/${m.chemin}`
                 : null
         }));
 
