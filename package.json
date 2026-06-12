@@ -1,0 +1,28 @@
+{
+  "name": "projet_web_l3_miage_back",
+  "version": "1.0.0",
+  "description": "Back du projet Web L3 MIAGE",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wellman012/Projet_Web_L3_MIAGE_Back.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Wellman012/Projet_Web_L3_MIAGE_Back/issues"
+  },
+  "homepage": "https://github.com/Wellman012/Projet_Web_L3_MIAGE_Back#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "mysql2": "^3.22.3"
+  }
+}
