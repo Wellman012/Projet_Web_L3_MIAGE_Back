@@ -6,7 +6,7 @@ const playlistsController = require("../controllers/playlists.controller");
 router.get("/playlists", playlistsController.getAllPlaylists);
 router.post("/playlists", playlistsController.createPlaylist);
 
-router.get("/playlists/recherche", playlistsController.searchPlaylists);
+router.get("/playlists/recherche", playlistsController.cherchePlaylists);
 
 router.get("/playlists/genres", playlistsController.getAllGenres);
 
