@@ -64,7 +64,7 @@ async function getMorceauxByPlaylistId(req, res) {
         const morceauxWithUrl = rows.map(m => ({
             ...m,
             url: m.chemin && m.chemin !== ''
-                ? `http://localhost:3000/morceaux-fichiers/${m.chemin}`
+                ? `/morceaux-fichiers/${m.chemin}`
                 : null
         }));
 

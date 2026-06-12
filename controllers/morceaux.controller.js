@@ -36,7 +36,7 @@ async function getMorceauById(req, res) {
 
         res.json({
             ...morceau,
-            url: `http://localhost:${PORT}/morceaux-fichiers/${morceau.chemin}`
+            url: `/morceaux-fichiers/${morceau.chemin}`
         });
     } catch (error) {
         console.error('Erreur dans getMorceauById :', error);
