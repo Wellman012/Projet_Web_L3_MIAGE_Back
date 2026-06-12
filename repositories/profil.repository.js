@@ -1,5 +1,6 @@
-const db = require('../db');
+const db = require("../db");
 
+// Renvoie la liste des playlists créées par l'utilisateur
 async function findPlaylistsByCreateur(pseudo) {
     const [rows] = await db.query(
         `SELECT P.id, P.nom AS titre, P.pseudo_createur AS createur, G.genre, G.color, P.nb_clics
@@ -9,9 +10,11 @@ async function findPlaylistsByCreateur(pseudo) {
          ORDER BY P.id`,
         [pseudo]
     );
+
     return rows;
 }
 
+// Renvoie les playlists auxquelles l'utilisateur a contribué
 async function findContributionsByPseudo(pseudo) {
     const [rows] = await db.query(
         `SELECT p.id, p.nom AS titre, p.pseudo_createur AS createur, G.genre, G.color, p.nb_clics
@@ -19,12 +22,14 @@ async function findContributionsByPseudo(pseudo) {
          JOIN playlist_contributeur pc ON p.id = pc.playlist_id
          JOIN user u ON pc.user_id = u.id
          JOIN genre G ON p.genre = G.id
-         WHERE u.pseudo = ? AND pc.role_contribution != 'createur'`,
+         WHERE u.pseudo = ? AND pc.role_contribution != "createur"`,
         [pseudo]
     );
+
     return rows;
 }
 
+// Renvoie le genre le plus représenté dans les playlists créées par l'utilisateur
 async function findGenreFavoriByPseudo(pseudo) {
     const [rows] = await db.query(
         `SELECT G.genre, COUNT(*) as total
@@ -36,6 +41,7 @@ async function findGenreFavoriByPseudo(pseudo) {
          LIMIT 1`,
         [pseudo]
     );
+
     return rows;
 }
 
