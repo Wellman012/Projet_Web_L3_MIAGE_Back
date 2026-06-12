@@ -1,5 +1,7 @@
 const db = require("../db");
 
+// Récupère toutes les playlists avec le tri demandé dans la requête
+// Les colonnes de tri et les ordres autorisés sont limités avant la construction de la requête
 async function findAllPlaylists(sort = "id", order = "asc") {
     const allowedSorts = {
         id: "P.id",
@@ -13,7 +15,7 @@ async function findAllPlaylists(sort = "id", order = "asc") {
         desc: "DESC"
     };
 
-    // Limite les colonnes et ordres autorisés pour éviter une injection SQL via le tri 
+    // Sélectionne uniquement une colonne et un ordre autorisés pour le tri
     const sortColumn = allowedSorts[sort] || allowedSorts.id;
     const sortOrder = allowedOrders[order?.toLowerCase()] || allowedOrders.asc;
 
@@ -27,6 +29,8 @@ async function findAllPlaylists(sort = "id", order = "asc") {
     return rows;
 }
 
+// Recherche les playlists dont le nom correspond au texte saisi
+// Les informations renvoyées correspondent à celles affichées dans la liste des playlists
 async function cherchePlaylistsByName(name) {
     const [rows] = await db.query(
         `SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics
@@ -37,10 +41,11 @@ async function cherchePlaylistsByName(name) {
         [`%${name}%`]
     );
 
-    // Recherche les playlists par nom et renvoie leurs informations 
     return rows;
 }
 
+// Récupère une playlist précise à partir de son identifiant
+// Les informations du genre sont jointes à la requête principale
 async function findPlaylistById(id) {
     const [rows] = await db.query(
         `SELECT P.id, nom AS titre, pseudo_createur AS createur, G.genre, G.color, nb_clics
@@ -49,11 +54,13 @@ async function findPlaylistById(id) {
          WHERE P.id = ?`,
         [id]
     );
+
     return rows;
 }
 
+// Récupère les pseudos des contributeurs associés à une playlist
+// Le créateur est exclu ici car il est déjà présent dans les informations principales de la playlist
 async function findContributeursByPlaylistId(id) {
-    //Permet d'afficher la liste complète de contributeurs
     const [rows] = await db.query(
         `SELECT u.pseudo
          FROM playlist_contributeur pc
@@ -61,16 +68,19 @@ async function findContributeursByPlaylistId(id) {
          WHERE pc.playlist_id = ? AND pc.role_contribution != "createur"`,
         [id]
     );
+
     return rows;
 }
 
+// Récupère la liste complète des genres enregistrés dans la base pour l'affichage en menu déroulant
 async function findAllGenres() {
     const [rows] = await db.query("SELECT genre FROM genre");
     return rows;
 }
 
+// Récupère les morceaux liés à une playlist avec leur ordre de lecture
+// L'ordre est lu dans la table de liaison car il dépend de la playlist
 async function findMorceauxByPlaylistId(id) {
-    // l'ordre est récupéré depuis la BD
     const [rows] = await db.query(
         `SELECT m.id, m.titre, m.artiste, m.chemin, pm.ordre_dans_playlist
          FROM playlist_morceau pm
@@ -79,9 +89,11 @@ async function findMorceauxByPlaylistId(id) {
          ORDER BY pm.ordre_dans_playlist`,
         [id]
     );
+
     return rows;
 }
 
+// Incrémente le nombre de clics d'une playlist
 async function incrementPlaylistClick(id) {
     const [result] = await db.query(
         "UPDATE playlist SET nb_clics = nb_clics + 1 WHERE id = ?",
@@ -90,8 +102,9 @@ async function incrementPlaylistClick(id) {
     return result;
 }
 
+// Recherche un genre existant à partir de son nom
+// Cette fonction est utilisée avant de créer un nouveau genre
 async function findGenreByName(genre) {
-    // Vérifie l'existence du genre avant d'en créer un nouveau
     const [rows] = await db.query(
         "SELECT id FROM genre WHERE genre = ?",
         [genre]
@@ -99,58 +112,73 @@ async function findGenreByName(genre) {
     return rows;
 }
 
+// Crée un nouveau genre avec sa couleur associée
 async function createGenre(genre, color) {
     const [result] = await db.query(
         "INSERT INTO genre (genre, color) VALUES (?, ?)",
         [genre, color]
     );
+
     return result;
 }
 
+// Crée une nouvelle playlist avec le titre, le genre et le pseudo du créateur
+// Le nombre de clics est initialisé à 0 dès l'insertion
 async function createPlaylist(titre, genreId, createur) {
     const [result] = await db.query(
         "INSERT INTO playlist (nom, genre, pseudo_createur, nb_clics) VALUES (?, ?, ?, 0)",
         [titre, genreId, createur]
     );
+
     return result;
 }
 
+// Récupère l'identifiant d'un utilisateur à partir de son pseudo
+// Cette fonction est utilisée lors de la gestion des contributeurs
 async function findUserByPseudo(pseudo) {
-    //Utilisé pour la liste d econtributeurs
     const [rows] = await db.query(
         "SELECT id FROM user WHERE pseudo = ?",
         [pseudo]
     );
+
     return rows;
 }
 
+// Ajoute le créateur dans la table des contributeurs de la playlist
+// INSERT IGNORE évite de créer un doublon si le lien existe déjà
 async function addCreateurAsContributeur(playlistId, userId) {
     const [result] = await db.query(
         "INSERT IGNORE INTO playlist_contributeur (playlist_id, user_id, role_contribution) VALUES (?, ?, ?)",
         [playlistId, userId, "createur"]
-        // INSERT IGNORE évite les doublons
     );
+
     return result;
 }
 
+// Supprime le lien entre une playlist et un morceau
+// Le morceau reste présent dans la BD
 async function deleteMorceauFromPlaylist(playlistId, morceauId) {
-    // Supprime l'association  playlist/morceau
     const [result] = await db.query(
         "DELETE FROM playlist_morceau WHERE playlist_id = ? AND morceau_id = ?",
         [playlistId, morceauId]
     );
+
     return result;
 }
 
+// Récupère les identifiants des morceaux déjà présents dans une playlist
+// Cette liste est utilisée avant l'ajout pour éviter les doublons
 async function findExistingMorceauxByPlaylistId(playlistId) {
-    //Pour éviter les doublons de morceaux
     const [rows] = await db.query(
         "SELECT morceau_id FROM playlist_morceau WHERE playlist_id = ?",
         [playlistId]
     );
+
     return rows;
 }
 
+// Récupère l'utilisateur courant et le créateur de la playlist
+// Le résultat permet de savoir si l'utilisateur doit être ajouté comme contributeur
 async function findUserAndCreateurByPlaylistIdAndPseudo(playlistId, pseudo) {
     const [rows] = await db.query(
         `SELECT u.id AS userId, p.pseudo_createur AS createurPseudo
@@ -160,13 +188,12 @@ async function findUserAndCreateurByPlaylistIdAndPseudo(playlistId, pseudo) {
         [playlistId, pseudo]
     );
 
-    // Récupère en une seule requête l'utilisateur courant et le créateur de la playlist
     return rows;
 }
 
+// Ajoute un contributeur à la playlist si le lien n'existe pas déjà
+// INSERT IGNORE évite les doublons dans la table de liaison
 async function addContributeurIfNeeded(playlistId, userId) {
-    // Ajoute les nouveaux contributeur
-
     const [result] = await db.query(
         "INSERT IGNORE INTO playlist_contributeur (playlist_id, user_id, role_contribution) VALUES (?, ?, ?)",
         [playlistId, userId, "contributeur"]
@@ -175,9 +202,10 @@ async function addContributeurIfNeeded(playlistId, userId) {
     return result;
 }
 
+// Récupère la position maximale actuellement utilisée dans une playlist
+// COALESCE renvoie 0 quand la playlist ne contient encore aucun morceau
 async function findMaxOrdreByPlaylistId(playlistId) {
     const [rows] = await db.query(
-        // COALESCE renvoie 0 si la playlist est vide pour initialiser correctement l'ordre.
         `SELECT COALESCE(MAX(ordre_dans_playlist), 0) AS maxOrdre
          FROM playlist_morceau
          WHERE playlist_id = ?`,
@@ -187,12 +215,15 @@ async function findMaxOrdreByPlaylistId(playlistId) {
     return rows;
 }
 
+// Insère plusieurs morceaux dans une playlist en une seule requête
+// Les valeurs reçues contiennent l'id de la playlist, l'id du morceau et son ordre
 async function insertMorceauxIntoPlaylist(values) {
     const [result] = await db.query(
         `INSERT INTO playlist_morceau (playlist_id, morceau_id, ordre_dans_playlist)
          VALUES ?`,
         [values]
     );
+
     return result;
 }
 

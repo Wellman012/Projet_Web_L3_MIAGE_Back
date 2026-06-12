@@ -8,6 +8,7 @@ router.get("/morceaux", morceauxController.getAllMorceaux);
 router.get("/morceaux/recherche", morceauxController.searchMorceaux);
 router.get("/morceaux/:id", morceauxController.getMorceauById);
 
+// Multer traite ici le fichier envoyé avant l'exécution du contrôleur
 router.post("/morceaux", upload.single("fichier"), morceauxController.createMorceau);
 
 module.exports = router;

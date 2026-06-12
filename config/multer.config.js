@@ -4,27 +4,29 @@ const fs = require("fs");
 
 const uploadDir = "./Morceaux";
 
-// Garantit l'existence du dossier de stockage avant tout upload
+// Vérifie l'existence du dossier qui stocke les fichiers audio importés
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// Définit les règles de stockage des fichiers envoyés avec Multer
 const storage = multer.diskStorage({
-    // Stocke  les fichiers audio dans le dossier dédié
+    // Enregistre les fichiers dans le dossier des morceaux
     destination: function (req, file, cb) {
         cb(null, uploadDir);
     },
 
-    // Génère un nom unique pour limiter les doublons
+    // Génère un nom unique à partir du champ envoyé, de la date et de l'extension du fichier
     filename: function (req, file, cb) {
         cb(null, file.fieldname + "-" + Date.now() + path.extname(file.originalname));
     }
 });
 
+// Configure Multer pour le stockage sur disque et le filtrage des fichiers
 const upload = multer({
     storage: storage,
 
-    // Filtre les fichiers autorisés 
+    // Vérifie que le fichier envoyé correspond bien à un format audio
     fileFilter: (req, file, cb) => {
         const allowedExt = /mp3|mp4|wav/;
         const extname = allowedExt.test(path.extname(file.originalname).toLowerCase());
@@ -37,7 +39,7 @@ const upload = multer({
         ];
         const mimetype = allowedMimeTypes.includes(file.mimetype);
 
-        // Vérification pour éviter les faux fichiers audio
+        // Le fichier est accepté uniquement si l'extension et le type MIME correspondent
         if (extname && mimetype) {
             cb(null, true);
         } else {
