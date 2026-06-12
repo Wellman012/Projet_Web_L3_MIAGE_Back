@@ -1,4 +1,4 @@
-const profilRepository = require('../repositories/profil.repository');
+const profilRepository = require("../repositories/profil.repository");
 
 async function getProfil(req, res) {
     try {
@@ -12,11 +12,11 @@ async function getProfil(req, res) {
             pseudo,
             playlists,
             contributions,
-            genreFavori: genreRow[0]?.genre || 'Aucun'
+            genreFavori: genreRow[0]?.genre || "Aucun"
         });
     } catch (error) {
-        console.error('Erreur dans getProfil :', error);
-        res.status(500).json({ message: 'Erreur serveur' });
+        console.error("Erreur dans getProfil :", error);
+        res.status(500).json({ message: "Erreur serveur" });
     }
 }
 

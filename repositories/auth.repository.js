@@ -1,24 +1,26 @@
-const db = require('../db');
+const db = require("../db");
 
 async function findUserByPseudo(pseudo) {
     const [rows] = await db.query(
-        'SELECT id, pseudo FROM user WHERE pseudo = ?',
+        "SELECT id, pseudo FROM user WHERE pseudo = ?",
         [pseudo]
     );
+
+    // vérifie que le pseudo est unique
     return rows;
 }
 
 async function createUser(nom, prenom, pseudo, motDePasse) {
     const [result] = await db.query(
-        'INSERT INTO user (nom, prenom, pseudo, mdp) VALUES (?, ?, ?, ?)',
+        "INSERT INTO user (nom, prenom, pseudo, mdp) VALUES (?, ?, ?, ?)",
         [nom, prenom, pseudo, motDePasse]
     );
     return result;
 }
 
-async function findUserByCredentials(pseudo, motDePasse) {
+async function findUserByIDs(pseudo, motDePasse) {
     const [rows] = await db.query(
-        'SELECT pseudo FROM user WHERE pseudo = ? AND mdp = ?',
+        "SELECT pseudo FROM user WHERE pseudo = ? AND mdp = ?",
         [pseudo, motDePasse]
     );
     return rows;
@@ -27,5 +29,5 @@ async function findUserByCredentials(pseudo, motDePasse) {
 module.exports = {
     findUserByPseudo,
     createUser,
-    findUserByCredentials
+    findUserByIDs
 };
