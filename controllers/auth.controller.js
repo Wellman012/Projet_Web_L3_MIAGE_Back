@@ -16,9 +16,9 @@ async function verifierPseudo(req, res) {
 async function inscription(req, res) {
     try {
         const { nom, prenom, pseudo, motDePasse } = req.body;
+
         const result = await authRepository.createUser(nom, prenom, pseudo, motDePasse);
 
-        // Retourne  les informations utiles après création du compte
         res.status(201).json({
             id: result.insertId,
             nom,
@@ -26,8 +26,14 @@ async function inscription(req, res) {
             pseudo
         });
     } catch (error) {
-        console.error("Erreur dans inscription :", error);
-        res.status(500).json({ message: "Erreur serveur" });
+        console.error('Erreur dans inscription :', error);
+
+        // Un pseudo déjà existant correspond à un conflit de données, pas à une panne serveur.
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: 'Pseudo déjà utilisé' });
+        }
+
+        res.status(500).json({ message: 'Erreur serveur' });
     }
 }
 
